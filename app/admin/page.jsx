@@ -24,6 +24,7 @@ const extractCleanUrls = (payload) => {
 
 const getPrimaryImage = (payload) => {
   if (!payload) return '';
+  if (typeof payload === 'string' && !payload.includes('[')) return payload; // For Cloudflare direct links
   try {
     const raw = JSON.stringify(payload);
     const match = raw.match(/https?:\/\/[^,;"'\[\]\s]+\.(?:jpg|jpeg|png|webp)/i);
@@ -38,26 +39,35 @@ const networkDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export default function AdminDashboard() {
   const { showToast } = useApp();
   
-  // NEW AUTHENTICATION STATE
+  // AUTHENTICATION STATE
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
+  // NAVIGATION & CORE STATE
   const [activeTab, setActiveTab] = useState('inventory');
+  
+  // INVENTORY STATE
   const [inventoryMode, setInventoryMode] = useState('manage'); 
   const [liveProducts, setLiveProducts] = useState([]);
   const [editingProduct, setEditingProduct] = useState(null);
-  
   const [editFiles, setEditFiles] = useState([]);
   const [editPreviews, setEditPreviews] = useState([]);
   const [isUpdating, setIsUpdating] = useState(false);
-
   const [productsList, setProductsList] = useState([
     { id: Date.now(), name: '', price: '', stock: '', category: 'bags', description: '', additional_information: '', store_policies: '', inquiries: '', published_at: '', files: [], previews: [] }
   ]);
   const [disabled, setDisabled] = useState(false);
 
+  // WAITLIST (AKU OYIBO & CLOUDFLARE) STATE
+  const [waitlistMode, setWaitlistMode] = useState('leads');
+  const [waitlistLeads, setWaitlistLeads] = useState([]);
+  const [waitlistProducts, setWaitlistProducts] = useState([]);
+  const [newWaitlistProduct, setNewWaitlistProduct] = useState({ name: '', price: '', badge: '', file: null, preview: '' });
+  const [isDeployingWaitlist, setIsDeployingWaitlist] = useState(false);
+
+  // OTHER DATA STATES
   const [orders, setOrders] = useState([]);
   const [clients, setClients] = useState([]);
   const [subscribers, setSubscribers] = useState([]);
@@ -68,27 +78,27 @@ export default function AdminDashboard() {
   const [analyticsData, setAnalyticsData] = useState([]);
   const [logisticsSettings, setLogisticsSettings] = useState(null);
   
+  // SUPPORT & CHAT STATE
   const [activeVendor, setActiveVendor] = useState(null);
   const [activeChat, setActiveChat] = useState(null);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
-
-  const [orderSearch, setOrderSearch] = useState('');
-  const [trackerMode, setTrackerMode] = useState('active');
-  const [visibleOrderCount, setVisibleOrderCount] = useState(10);
-
-  const [interceptedOrder, setInterceptedOrder] = useState(null);
-  const [deliveryDays, setDeliveryDays] = useState('');
-  
   const [isUserTyping, setIsUserTyping] = useState(false);
   const typingChannelRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const chatEndRef = useRef(null);
 
+  // ORDER TRACKER STATE
+  const [orderSearch, setOrderSearch] = useState('');
+  const [trackerMode, setTrackerMode] = useState('active');
+  const [visibleOrderCount, setVisibleOrderCount] = useState(10);
+  const [interceptedOrder, setInterceptedOrder] = useState(null);
+  const [deliveryDays, setDeliveryDays] = useState('');
+  
+  // NEWSLETTER STATE
   const [newsletterSubj, setNewsletterSubj] = useState('');
   const [newsletterMsg, setNewsletterMsg] = useState('');
   const [sendingNewsletter, setSendingNewsletter] = useState(false);
-
-  const chatEndRef = useRef(null);
 
   // CHECK EXISTING SUPABASE SESSION
   useEffect(() => {
@@ -113,35 +123,39 @@ export default function AdminDashboard() {
         const { data: lData } = await supabase.from('shipping_settings').select('*').eq('id', 1).single();
         if (lData) setLogisticsSettings(lData);
       } catch(e){}
-
       try {
         const { data: sData } = await supabase.from('subscribers').select('*').order('created_at', { ascending: false });
         if (sData) setSubscribers(sData);
       } catch(e){}
-
       try {
         const { data: cData } = await supabase.from('campaigns').select('*').order('created_at', { ascending: false });
         if (cData) setCampaigns(cData);
       } catch(e){}
-
       try {
         const { data: tData } = await supabase.from('support_tickets').select('*').order('created_at', { ascending: false });
         if (tData) setTickets(tData);
       } catch(e){}
-
       try {
         const { data: vData } = await supabase.from('vendors').select('*').order('name', { ascending: true });
         if (vData) setVendors(vData);
       } catch(e){}
-
       try {
         const { data: aData } = await supabase.from('page_analytics').select('*').order('created_at', { ascending: false });
         if (aData) setAnalyticsData(aData);
       } catch(e){}
-
       try {
         const { data: pData } = await supabase.from('products').select('*').order('created_at', { ascending: false });
         if (pData) setLiveProducts(pData);
+      } catch(e){}
+      
+      // LOAD WAITLIST DATA
+      try {
+        const { data: wlData } = await supabase.from('waitlist_leads').select('*').order('created_at', { ascending: false });
+        if (wlData) setWaitlistLeads(wlData);
+      } catch(e){}
+      try {
+        const { data: wpData } = await supabase.from('waitlist_products').select('*').order('created_at', { ascending: false });
+        if (wpData) setWaitlistProducts(wpData);
       } catch(e){}
     }
     loadMasterData();
@@ -172,6 +186,14 @@ export default function AdminDashboard() {
         if (payload.eventType === 'INSERT') setLiveProducts(prev => [payload.new, ...prev]);
         if (payload.eventType === 'UPDATE') setLiveProducts(prev => prev.map(p => p.id === payload.new.id ? payload.new : p));
         if (payload.eventType === 'DELETE') setLiveProducts(prev => prev.filter(p => p.id !== payload.old.id));
+      })
+      // SYNC WAITLIST DATA
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'waitlist_leads' }, (payload) => {
+        setWaitlistLeads(prev => [payload.new, ...prev]);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'waitlist_products' }, (payload) => {
+        if (payload.eventType === 'INSERT') setWaitlistProducts(prev => [payload.new, ...prev]);
+        if (payload.eventType === 'DELETE') setWaitlistProducts(prev => prev.filter(p => p.id !== payload.old.id));
       })
       .subscribe();
 
@@ -216,7 +238,7 @@ export default function AdminDashboard() {
     if (activeChat && chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [activeChat]);
 
-  // NEW: SECURE SUPABASE LOGIN
+  // LOGIN / LOGOUT
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsAuthenticating(true);
@@ -245,6 +267,69 @@ export default function AdminDashboard() {
     showToast('PORTAL SECURELY LOCKED.');
   };
 
+  // --- WAITLIST / CLOUDFLARE UPLOAD LOGIC ---
+  const handleWaitlistProductUpload = async (e) => {
+    e.preventDefault();
+    if (!newWaitlistProduct.file || !newWaitlistProduct.name || !newWaitlistProduct.price) {
+      return showToast("PLEASE COMPLETE ALL REQUIRED FIELDS AND ATTACH AN IMAGE.");
+    }
+    
+    setIsDeployingWaitlist(true);
+    showToast("UPLOADING SECURE ASSET TO CLOUDFLARE R2...");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", newWaitlistProduct.file);
+
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      
+      const resData = await uploadRes.json();
+      
+      if (resData.error || !resData.url) {
+        throw new Error(resData.error || "Failed to retrieve Cloudflare URL");
+      }
+
+      const cloudflareImageUrl = resData.url;
+
+      const { error: dbError } = await supabase
+        .from('waitlist_products')
+        .insert([
+          { 
+            name: newWaitlistProduct.name.toUpperCase(), 
+            price: `₦${parseFloat(newWaitlistProduct.price).toLocaleString()}`, 
+            badge: newWaitlistProduct.badge ? newWaitlistProduct.badge.toUpperCase() : null,
+            image_url: cloudflareImageUrl 
+          }
+        ]);
+        
+      if (dbError) throw dbError;
+      
+      showToast("WAITLIST ITEM DEPLOYED SUCCESSFULLY.");
+      setNewWaitlistProduct({ name: '', price: '', badge: '', file: null, preview: '' });
+      document.getElementById('waitlist-image-input').value = '';
+      
+    } catch (err) {
+      showToast(`UPLOAD ERROR: ${err.message.toUpperCase()}`);
+    } finally {
+      setIsDeployingWaitlist(false);
+    }
+  };
+
+  const handleDeleteWaitlistProduct = async (id) => {
+    if (!window.confirm("REMOVE THIS ITEM FROM THE WAITLIST DROPS?")) return;
+    try {
+      const { error } = await supabase.from('waitlist_products').delete().eq('id', id);
+      if (error) throw error;
+      showToast("WAITLIST ITEM REMOVED.");
+    } catch (err) {
+      showToast(`DELETE ERROR: ${err.message.toUpperCase()}`);
+    }
+  };
+
+  // --- STANDARD INVENTORY LOGIC ---
   const addProductRow = () => {
     setProductsList(prev => [...prev, { id: Date.now(), name: '', price: '', stock: '', category: 'bags', description: '', additional_information: '', store_policies: '', inquiries: '', published_at: '', files: [], previews: [] }]);
   };
@@ -285,27 +370,24 @@ export default function AdminDashboard() {
         return showToast(`ERROR: ${detailedError}`);
       }
 
-      showToast('UPLOADING IMAGES... PLEASE KEEP BROWSER OPEN.');
+      showToast('UPLOADING IMAGES TO CLOUDFLARE... PLEASE KEEP BROWSER OPEN.');
 
       for (const product of productsList) {
         let imageUrls = [];
         
         for (const file of product.files) {
-          const fileExt = file.name.split('.').pop().toLowerCase();
-          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-          const safeContentType = file.type || `image/jpeg`;
+          const formData = new FormData();
+          formData.append("file", file);
 
-          const { error: uploadError } = await supabase.storage.from('product-images').upload(fileName, file, { 
-            cacheControl: '3600', 
-            upsert: false, 
-            contentType: safeContentType 
+          const uploadRes = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
           });
           
-          if (uploadError) throw new Error(uploadError.message || "Failed to upload image. Network timeout.");
+          const resData = await uploadRes.json();
+          if (resData.error || !resData.url) throw new Error(resData.error || "Failed to retrieve Cloudflare URL");
           
-          const { data } = supabase.storage.from('product-images').getPublicUrl(fileName);
-          imageUrls.push(data.publicUrl);
-          
+          imageUrls.push(resData.url);
           await networkDelay(500); 
         }
 
@@ -375,24 +457,21 @@ export default function AdminDashboard() {
 
       if (editFiles.length > 0) {
         finalImageUrls = []; 
-        showToast('UPDATING IMAGES... PLEASE KEEP BROWSER OPEN.');
+        showToast('UPDATING IMAGES TO CLOUDFLARE... PLEASE KEEP BROWSER OPEN.');
 
         for (const file of editFiles) {
-          const fileExt = file.name.split('.').pop().toLowerCase();
-          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-          const safeContentType = file.type || `image/jpeg`;
+          const formData = new FormData();
+          formData.append("file", file);
 
-          const { error: uploadError } = await supabase.storage.from('product-images').upload(fileName, file, { 
-            cacheControl: '3600', 
-            upsert: false, 
-            contentType: safeContentType 
+          const uploadRes = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
           });
           
-          if (uploadError) throw new Error(uploadError.message || "Failed to upload image. Network timeout.");
-          
-          const { data } = supabase.storage.from('product-images').getPublicUrl(fileName);
-          finalImageUrls.push(data.publicUrl);
+          const resData = await uploadRes.json();
+          if (resData.error || !resData.url) throw new Error(resData.error || "Failed to retrieve Cloudflare URL");
 
+          finalImageUrls.push(resData.url);
           await networkDelay(500);
         }
       }
@@ -684,7 +763,6 @@ export default function AdminDashboard() {
           <h1 className="text-xl font-normal tracking-[0.4em] uppercase mb-2 font-serif">S. SIKAMÒRE</h1>
           <p className="text-[9px] tracking-[0.2em] uppercase text-zinc-500 mb-8">Secure Admin Portal</p>
           <form onSubmit={handleLogin} className="flex flex-col gap-6">
-            {/* UPDATED: SECURE LOGIN FIELDS */}
             <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="ADMIN EMAIL" required className="w-full bg-zinc-50 p-4 border border-zinc-200 focus:border-black outline-none text-base md:text-xs text-center tracking-widest text-black uppercase" />
             <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="SECURE PASSWORD" required className="w-full bg-zinc-50 p-4 border border-zinc-200 focus:border-black outline-none text-base md:text-xs text-center tracking-widest text-black uppercase" />
             
@@ -710,13 +788,137 @@ export default function AdminDashboard() {
           </div>
           <h1 className="text-2xl font-normal tracking-[0.4em] uppercase mb-2 font-serif text-black">S. SIKAMÒRE</h1>
           <div className="flex flex-wrap justify-center gap-2 sm:gap-4 mt-8">
-            {['inventory', 'tracker', 'clients', 'logistics', 'newsletter', 'support', 'vendors', 'analytics'].map((tab) => (
+            {['inventory', 'waitlist', 'tracker', 'clients', 'logistics', 'newsletter', 'support', 'vendors', 'analytics'].map((tab) => (
               <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 text-[9px] tracking-[0.2em] uppercase transition-colors border ${activeTab === tab ? 'bg-black text-white border-black' : 'bg-white text-zinc-500 border-zinc-200 hover:border-black hover:text-black'}`}>
                 {tab}
               </button>
             ))}
           </div>
         </div>
+
+        {/* --- TAB 0: WAITLIST MANAGEMENT & CLOUDFLARE DROPS --- */}
+        {activeTab === 'waitlist' && (
+          <div className="animate-fade-in space-y-6">
+            <div className="flex border-b border-zinc-200 pb-2">
+              <button onClick={() => setWaitlistMode('leads')} className={`px-4 py-2 text-[10px] tracking-[0.2em] uppercase transition-colors ${waitlistMode === 'leads' ? 'text-black font-bold border-b-2 border-black' : 'text-zinc-400 hover:text-black'}`}>
+                Captured Leads
+              </button>
+              <button onClick={() => setWaitlistMode('products')} className={`px-4 py-2 text-[10px] tracking-[0.2em] uppercase transition-colors ${waitlistMode === 'products' ? 'text-black font-bold border-b-2 border-black' : 'text-zinc-400 hover:text-black'}`}>
+                Campaign Items (Cloudflare)
+              </button>
+            </div>
+
+            {waitlistMode === 'leads' && (
+              <div className="bg-white text-black p-6 sm:p-10 shadow-sm border border-zinc-200 rounded-sm">
+                <div className="flex justify-between items-center border-b border-zinc-200 pb-4 mb-6">
+                  <h3 className="text-xs uppercase tracking-widest font-medium">Waitlist Campaign Leads ({waitlistLeads.length})</h3>
+                </div>
+                {waitlistLeads.length === 0 ? (
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest text-center py-10">No waitlist signups captured yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[9px] tracking-wider uppercase text-zinc-600">
+                      <thead>
+                        <tr className="text-black text-[8px] tracking-widest border-b border-zinc-200 pb-2">
+                          <th className="py-3 font-medium">Date / Time</th>
+                          <th className="py-3 font-medium">Profile Details</th>
+                          <th className="py-3 font-medium">Location</th>
+                          <th className="py-3 font-medium">Interest & Intent</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100">
+                        {waitlistLeads.map(lead => (
+                          <tr key={lead.id} className="hover:bg-zinc-50 transition-colors">
+                            <td className="py-4 font-mono text-[8.5px] text-zinc-400">
+                              {new Date(lead.created_at).toLocaleDateString()}
+                            </td>
+                            <td className="py-4">
+                              <span className="text-black font-medium block">{lead.first_name}</span>
+                              <span className="lowercase text-zinc-500 tracking-wide block mt-1">{lead.email}</span>
+                              {lead.whatsapp && <span className="font-mono text-zinc-400 mt-1 block tracking-tight">{lead.whatsapp}</span>}
+                            </td>
+                            <td className="py-4 font-bold text-black">{lead.country}</td>
+                            <td className="py-4">
+                              <span className="block text-black font-medium">{lead.design_interest}</span>
+                              <span className={`inline-block mt-1 px-2 py-0.5 rounded-sm text-[7px] tracking-widest font-bold ${lead.purchase_intent === 'Yes' ? 'bg-black text-white' : lead.purchase_intent === 'Maybe' ? 'bg-zinc-200 text-zinc-700' : 'bg-red-50 text-red-500 border border-red-100'}`}>
+                                Intent: {lead.purchase_intent}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {waitlistMode === 'products' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Upload Form targeting Cloudflare */}
+                <div className="bg-white p-6 sm:p-10 shadow-sm border border-zinc-200 rounded-sm">
+                  <h3 className="text-xs uppercase tracking-widest font-medium border-b border-zinc-200 pb-4 mb-6">Deploy Campaign Item</h3>
+                  <form onSubmit={handleWaitlistProductUpload} className="space-y-6">
+                    <div>
+                      <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase">Product Name</label>
+                      <input type="text" required placeholder="E.G. AKU OYIBO (CORAL)" value={newWaitlistProduct.name} onChange={e => setNewWaitlistProduct({...newWaitlistProduct, name: e.target.value})} className="w-full bg-zinc-50 p-3 border border-zinc-200 focus:border-black outline-none text-[10px] text-black uppercase tracking-widest"/>
+                    </div>
+                    <div>
+                      <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase">Price Format (String)</label>
+                      <input type="number" required placeholder="E.G. 360000" value={newWaitlistProduct.price} onChange={e => setNewWaitlistProduct({...newWaitlistProduct, price: e.target.value})} className="w-full bg-zinc-50 p-3 border border-zinc-200 focus:border-black outline-none text-[10px] text-black tracking-widest"/>
+                    </div>
+                    <div>
+                      <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase">Badge (Optional)</label>
+                      <input type="text" placeholder="E.G. LIMITED MATERIAL" value={newWaitlistProduct.badge} onChange={e => setNewWaitlistProduct({...newWaitlistProduct, badge: e.target.value})} className="w-full bg-zinc-50 p-3 border border-zinc-200 focus:border-black outline-none text-[10px] text-black uppercase tracking-widest"/>
+                    </div>
+                    <div>
+                      <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase flex justify-between">
+                        <span>Campaign Image</span>
+                        <span className="text-blue-500 font-bold tracking-widest">R2 ZERO-EGRESS</span>
+                      </label>
+                      <input id="waitlist-image-input" type="file" required accept="image/jpeg, image/png, image/webp" onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) setNewWaitlistProduct({...newWaitlistProduct, file, preview: URL.createObjectURL(file)});
+                      }} className="w-full text-[9px] file:mr-4 file:py-2 file:px-4 file:border file:border-zinc-200 file:text-[8px] file:tracking-widest file:bg-zinc-100 file:text-black file:uppercase file:cursor-pointer text-zinc-600 hover:file:bg-zinc-200 transition-colors" />
+                    </div>
+                    
+                    {newWaitlistProduct.preview && (
+                      <div className="w-24 h-32 border border-zinc-200 p-1">
+                        <img src={newWaitlistProduct.preview} className="w-full h-full object-cover" alt="Upload Preview" />
+                      </div>
+                    )}
+                    
+                    <button type="submit" disabled={isDeployingWaitlist} className="w-full bg-black text-white py-4 text-[10px] tracking-[0.3em] uppercase hover:bg-zinc-800 font-medium transition-colors disabled:opacity-50 mt-2">
+                      {isDeployingWaitlist ? 'DEPLOYING TO CLOUDFLARE...' : 'UPLOAD ITEM'}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Active Waitlist Products Display */}
+                <div className="bg-white p-6 shadow-sm border border-zinc-200 rounded-sm">
+                  <h3 className="text-xs uppercase tracking-widest font-medium border-b border-zinc-200 pb-4 mb-6">Live Waitlist Grid</h3>
+                  {waitlistProducts.length === 0 ? (
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest text-center py-10">No items on waitlist drop.</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      {waitlistProducts.map(wp => (
+                        <div key={wp.id} className="border border-zinc-200 bg-zinc-50 p-3 flex flex-col group relative">
+                          <button onClick={() => handleDeleteWaitlistProduct(wp.id)} className="absolute top-2 right-2 bg-white border border-red-200 text-red-500 w-6 h-6 flex items-center justify-center text-[10px] hover:bg-red-50 z-10 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                          <div className="w-full aspect-[4/5] bg-white border border-zinc-200 overflow-hidden mb-3 relative">
+                            {wp.badge && <span className="absolute top-1 left-1 bg-black text-white text-[6px] px-1.5 py-0.5 uppercase tracking-widest z-10">{wp.badge}</span>}
+                            <img src={wp.image_url} alt={wp.name} className="w-full h-full object-cover" />
+                          </div>
+                          <h4 className="text-[9px] uppercase tracking-wider text-black font-medium">{wp.name}</h4>
+                          <p className="text-[8px] text-zinc-500 font-mono mt-1">{wp.price}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* --- TAB 1: INVENTORY MANAGEMENT --- */}
         {activeTab === 'inventory' && (
@@ -877,7 +1079,6 @@ export default function AdminDashboard() {
                             <option value="clothing">Clothing</option>
                           </select>
                         </div>
-                        {/* NEW GO LIVE FIELD */}
                         <div>
                           <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase" title="Leave blank to publish instantly">Go Live Date (Opt)</label>
                           <input type="datetime-local" value={product.published_at || ''} onChange={(e)=>updateProductData(product.id, 'published_at', e.target.value)} className="w-full bg-white p-3 border border-zinc-200 focus:border-black outline-none text-base md:text-xs text-black uppercase" />
@@ -1077,7 +1278,6 @@ export default function AdminDashboard() {
                   const mainFee = parseFloat(e.target.mainland.value);
                   const islFee = parseFloat(e.target.island.value);
                   const interFee = parseFloat(e.target.interstate.value);
-                  // --> NEW LOGIC ADDED HERE:
                   const northFee = parseFloat(e.target.northern.value);
                   const dynamicUsdRate = parseFloat(e.target.usdRate.value);
                   const feeAfrica = parseFloat(e.target.intlShippingAfricaUSD.value);
@@ -1089,7 +1289,6 @@ export default function AdminDashboard() {
                       mainland_fee: mainFee, 
                       island_fee: islFee, 
                       interstate_fee: interFee, 
-                      // --> AND HERE:
                       northern_fee: northFee,
                       usd_to_ngn_rate: dynamicUsdRate,
                       international_fee_africa: feeAfrica,
@@ -1154,7 +1353,6 @@ export default function AdminDashboard() {
                   <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase">Outside Lagos (South) Rate (₦)</label>
                   <input type="number" name="interstate" defaultValue={logisticsSettings?.interstate_fee || 12500} required className="w-full bg-zinc-50 p-4 border border-zinc-200 focus:border-black outline-none text-base md:text-xs text-black" />
                 </div>
-                {/* NEW INPUT FIELD ADDED HERE */}
                 <div>
                   <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase">Northern States Freight Rate (₦)</label>
                   <input type="number" name="northern" defaultValue={logisticsSettings?.northern_fee || 16000} required className="w-full bg-zinc-50 p-4 border border-zinc-200 focus:border-black outline-none text-base md:text-xs text-black" />
