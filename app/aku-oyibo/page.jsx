@@ -54,7 +54,7 @@ export default function AkuOyiboWaitlist() {
   return (
     <div className="min-h-screen bg-[#F5F0E6] text-[#4A3025] font-sans selection:bg-[#A3523B] selection:text-white relative">
       
-      {/* 1. HERO SECTION */}
+      {/* 1. HERO SECTION WITH FROSTED GLASS EFFECT */}
       <section className="relative min-h-[90vh] md:min-h-screen flex flex-col bg-[#4A3025]">
         <div className="absolute inset-0 z-0">
           {products.length > 0 ? (
@@ -62,7 +62,12 @@ export default function AkuOyiboWaitlist() {
           ) : (
             <div className="w-full h-full bg-[#4A3025]"></div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#4A3025]/90 via-[#4A3025]/80 to-[#4A3025]/40 md:bg-gradient-to-r md:from-[#4A3025] md:via-[#4A3025]/90 md:to-transparent"></div>
+          
+          {/* Brand-Colored Frosted Glass Overlay */}
+          <div className="absolute inset-0 bg-[#4A3025]/40 backdrop-blur-md"></div>
+          
+          {/* Gradient to ensure crisp text readability over the glass */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#4A3025]/90 via-[#4A3025]/60 to-[#4A3025]/90 md:bg-gradient-to-r md:from-[#4A3025]/95 md:via-[#4A3025]/70 md:to-transparent"></div>
         </div>
 
         <header className="w-full pt-8 px-6 sm:px-12 flex justify-between items-center z-10 relative">
@@ -75,14 +80,14 @@ export default function AkuOyiboWaitlist() {
         </header>
 
         <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 z-10 relative max-w-[1400px] mx-auto w-full pt-16 md:pt-0">
-          <div className="max-w-lg">
+          <div className="max-w-xl">
             <span className="text-[11px] tracking-[0.5em] uppercase text-[#D1C7BD] mb-4 block">T H E</span>
-            <h1 className="text-5xl sm:text-7xl font-serif font-light uppercase leading-none mb-4 text-[#F4EFE6]">AKU OYIBO</h1>
+            <h1 className="text-5xl sm:text-7xl font-serif font-light uppercase leading-none mb-4 text-[#F4EFE6] drop-shadow-sm">AKU OYIBO</h1>
             <span className="text-[11px] tracking-[0.5em] uppercase text-[#D1C7BD] mb-8 block">W A I T L I S T</span>
             
             <div className="w-16 h-px bg-[#D1C7BD] mb-8"></div>
             
-            <p className="font-serif italic text-lg sm:text-xl text-[#F4EFE6] mb-6">
+            <p className="font-serif italic text-lg sm:text-xl text-[#F4EFE6] mb-6 drop-shadow-sm">
               Some pieces are made to be worn.<br/>Others are made to be kept.
             </p>
             
@@ -94,7 +99,7 @@ export default function AkuOyiboWaitlist() {
             
             <p className="text-[10px] tracking-widest text-[#D1C7BD] mb-12 uppercase">From Ala Oma — Resort 2027.</p>
             
-            <button onClick={() => document.getElementById('waitlist-form').scrollIntoView({ behavior: 'smooth' })} className="bg-[#A3523B] text-white px-8 py-3.5 text-[9px] tracking-[0.2em] uppercase font-bold hover:bg-[#8A422D] transition-colors w-full sm:w-auto">
+            <button onClick={() => document.getElementById('waitlist-form').scrollIntoView({ behavior: 'smooth' })} className="bg-[#A3523B] text-white px-8 py-3.5 text-[9px] tracking-[0.2em] uppercase font-bold hover:bg-[#8A422D] shadow-xl hover:shadow-2xl transition-all w-full sm:w-auto">
               JOIN THE WAITLIST →
             </button>
           </div>
@@ -110,8 +115,8 @@ export default function AkuOyiboWaitlist() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-6">
             {products.map((item) => (
               <div key={item.id} onClick={() => openModal(item)} className="flex flex-col items-center group cursor-pointer">
-                <div className="w-full aspect-[4/5] mb-4 relative overflow-hidden bg-[#EAE2D6]">
-                  {item.badge && <span className="absolute bottom-2 left-2 bg-[#A3523B] text-white text-[6px] md:text-[7px] px-2 py-1 uppercase tracking-widest z-10 font-bold">{item.badge}</span>}
+                <div className="w-full aspect-[4/5] mb-4 relative overflow-hidden bg-[#EAE2D6] shadow-sm group-hover:shadow-md transition-shadow">
+                  {item.badge && <span className="absolute bottom-2 left-2 bg-[#A3523B] text-white text-[6px] md:text-[7px] px-2 py-1 uppercase tracking-widest z-10 font-bold shadow-sm">{item.badge}</span>}
                   <img src={item.image_url} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                 </div>
                 <h3 className="text-[9px] md:text-[11px] tracking-widest mb-1 text-[#4A3025] font-medium leading-tight group-hover:text-[#A3523B] transition-colors">{item.name}</h3>
@@ -129,18 +134,18 @@ export default function AkuOyiboWaitlist() {
           <p className="text-[10px] md:text-[11px] tracking-wider text-[#735A4D] mb-8 leading-relaxed font-medium">Be the first to know when pre-orders open on 16th November.</p>
 
           {submitStatus === 'success' ? (
-            <div className="bg-[#EAE2D6] p-10 border text-center animate-fade-in"><h3 className="text-sm tracking-[0.2em] uppercase font-bold mb-4">You're on the list</h3></div>
+            <div className="bg-[#EAE2D6] p-10 border border-[#D1C7BD] text-center animate-fade-in"><h3 className="text-sm tracking-[0.2em] uppercase font-bold text-[#4A3025] mb-4">You're on the list</h3><p className="text-[11px] tracking-wider text-[#735A4D] leading-relaxed">Thank you for your interest. You will be notified directly when the private reserve unlocks.</p></div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4 md:space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
-                <input type="text" name="firstName" placeholder="First Name *" required value={formData.firstName} onChange={handleChange} className="w-full bg-transparent border border-[#C6B6A5] px-4 py-3.5 text-[10px] md:text-[11px] uppercase tracking-wider focus:outline-none rounded-sm" />
-                <input type="email" name="email" placeholder="Email Address *" required value={formData.email} onChange={handleChange} className="w-full bg-transparent border border-[#C6B6A5] px-4 py-3.5 text-[10px] md:text-[11px] uppercase tracking-wider focus:outline-none rounded-sm" />
+                <input type="text" name="firstName" placeholder="First Name *" required value={formData.firstName} onChange={handleChange} className="w-full bg-white/50 border border-[#C6B6A5] px-4 py-3.5 text-[10px] md:text-[11px] uppercase tracking-wider focus:bg-white focus:border-[#4A3025] focus:outline-none transition-all rounded-sm shadow-sm" />
+                <input type="email" name="email" placeholder="Email Address *" required value={formData.email} onChange={handleChange} className="w-full bg-white/50 border border-[#C6B6A5] px-4 py-3.5 text-[10px] md:text-[11px] uppercase tracking-wider focus:bg-white focus:border-[#4A3025] focus:outline-none transition-all rounded-sm shadow-sm" />
               </div>
-              <input type="tel" name="whatsapp" placeholder="WhatsApp Number (Optional)" value={formData.whatsapp} onChange={handleChange} className="w-full bg-transparent border border-[#C6B6A5] px-4 py-3.5 text-[10px] md:text-[11px] uppercase tracking-wider focus:outline-none rounded-sm" />
-              <select name="country" required value={formData.country} onChange={handleChange} className="w-full bg-transparent border border-[#C6B6A5] px-4 py-3.5 text-[10px] md:text-[11px] tracking-wider uppercase focus:outline-none appearance-none rounded-sm"><option value="" disabled>Country of Residence *</option><option value="NG">Nigeria</option><option value="US">United States</option><option value="UK">United Kingdom</option></select>
-              <select name="designInterest" required value={formData.designInterest} onChange={handleChange} className="w-full bg-transparent border border-[#C6B6A5] px-4 py-3.5 text-[10px] md:text-[11px] tracking-wider uppercase focus:outline-none appearance-none rounded-sm"><option value="" disabled>Which Aku Oyibo design? *</option>{products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}</select>
-              <select name="purchaseIntent" required value={formData.purchaseIntent} onChange={handleChange} className="w-full bg-transparent border border-[#C6B6A5] px-4 py-3.5 text-[10px] md:text-[11px] tracking-wider uppercase focus:outline-none appearance-none rounded-sm"><option value="" disabled>Pre-ordering in November? *</option><option value="Yes">Yes</option><option value="Maybe">Maybe</option></select>
-              <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto bg-[#A3523B] text-white px-10 py-4 mt-2 text-[10px] tracking-[0.2em] uppercase font-bold rounded-sm">{isSubmitting ? 'TRANSMITTING...' : 'JOIN WAITLIST →'}</button>
+              <input type="tel" name="whatsapp" placeholder="WhatsApp Number (Optional)" value={formData.whatsapp} onChange={handleChange} className="w-full bg-white/50 border border-[#C6B6A5] px-4 py-3.5 text-[10px] md:text-[11px] uppercase tracking-wider focus:bg-white focus:border-[#4A3025] focus:outline-none transition-all rounded-sm shadow-sm" />
+              <select name="country" required value={formData.country} onChange={handleChange} className="w-full bg-white/50 border border-[#C6B6A5] px-4 py-3.5 text-[10px] md:text-[11px] tracking-wider uppercase focus:bg-white focus:border-[#4A3025] focus:outline-none transition-all appearance-none rounded-sm shadow-sm"><option value="" disabled>Country of Residence *</option><option value="NG">Nigeria</option><option value="US">United States</option><option value="UK">United Kingdom</option></select>
+              <select name="designInterest" required value={formData.designInterest} onChange={handleChange} className="w-full bg-white/50 border border-[#C6B6A5] px-4 py-3.5 text-[10px] md:text-[11px] tracking-wider uppercase focus:bg-white focus:border-[#4A3025] focus:outline-none transition-all appearance-none rounded-sm shadow-sm"><option value="" disabled>Which Aku Oyibo design? *</option>{products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}</select>
+              <select name="purchaseIntent" required value={formData.purchaseIntent} onChange={handleChange} className="w-full bg-white/50 border border-[#C6B6A5] px-4 py-3.5 text-[10px] md:text-[11px] tracking-wider uppercase focus:bg-white focus:border-[#4A3025] focus:outline-none transition-all appearance-none rounded-sm shadow-sm"><option value="" disabled>Pre-ordering in November? *</option><option value="Yes">Yes</option><option value="Maybe">Maybe</option></select>
+              <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto bg-[#A3523B] text-white px-10 py-4 mt-2 text-[10px] tracking-[0.2em] uppercase font-bold rounded-sm hover:bg-[#8A422D] shadow-md hover:shadow-lg transition-all">{isSubmitting ? 'TRANSMITTING...' : 'JOIN WAITLIST →'}</button>
             </form>
           )}
         </div>
@@ -148,7 +153,7 @@ export default function AkuOyiboWaitlist() {
         {/* Value Props Column */}
         <div className="md:col-span-5 lg:col-span-4 flex flex-col justify-center space-y-8 md:space-y-10 md:pl-10 md:border-l border-[#D1C7BD] mt-8 md:mt-0">
           <div className="flex gap-4 md:gap-5 items-start">
-            <svg className="w-6 h-6 md:w-8 md:h-8 text-[#4A3025] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>
+            <svg className="w-6 h-6 md:w-8 md:h-8 text-[#A3523B] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>
             <div>
               <h4 className="text-[11px] md:text-[12px] tracking-[0.1em] font-bold text-[#4A3025] uppercase mb-1">Handcrafted</h4>
               <p className="text-[10px] md:text-[11px] tracking-wide text-[#735A4D] leading-relaxed">
@@ -157,7 +162,7 @@ export default function AkuOyiboWaitlist() {
             </div>
           </div>
           <div className="flex gap-4 md:gap-5 items-start">
-            <svg className="w-6 h-6 md:w-8 md:h-8 text-[#4A3025] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+            <svg className="w-6 h-6 md:w-8 md:h-8 text-[#A3523B] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
             <div>
               <h4 className="text-[11px] md:text-[12px] tracking-[0.1em] font-bold text-[#4A3025] uppercase mb-1">Collectible Design</h4>
               <p className="text-[10px] md:text-[11px] tracking-wide text-[#735A4D] leading-relaxed">
@@ -166,7 +171,7 @@ export default function AkuOyiboWaitlist() {
             </div>
           </div>
           <div className="flex gap-4 md:gap-5 items-start">
-            <svg className="w-6 h-6 md:w-8 md:h-8 text-[#4A3025] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+            <svg className="w-6 h-6 md:w-8 md:h-8 text-[#A3523B] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
             <div>
               <h4 className="text-[11px] md:text-[12px] tracking-[0.1em] font-bold text-[#4A3025] uppercase mb-1">Limited Production</h4>
               <p className="text-[10px] md:text-[11px] tracking-wide text-[#735A4D] leading-relaxed">
@@ -180,12 +185,14 @@ export default function AkuOyiboWaitlist() {
       {/* 4. PRODUCT MODAL */}
       {selectedProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 animate-fade-in">
-          <div className="absolute inset-0 bg-[#4A3025]/90 backdrop-blur-sm cursor-pointer" onClick={closeModal}></div>
+          {/* Modal Frosted Glass Backdrop */}
+          <div className="absolute inset-0 bg-[#4A3025]/80 backdrop-blur-md cursor-pointer" onClick={closeModal}></div>
+          
           <div className="bg-[#F5F0E6] w-full max-w-5xl max-h-[90vh] overflow-y-auto relative z-10 flex flex-col md:flex-row shadow-2xl rounded-sm">
-            <button onClick={closeModal} className="absolute top-4 right-4 z-20 bg-white/50 hover:bg-white p-2 text-[#4A3025] transition-colors rounded-full">✕</button>
+            <button onClick={closeModal} className="absolute top-4 right-4 z-20 bg-white/70 hover:bg-white p-2 text-[#4A3025] shadow-sm transition-colors rounded-full">✕</button>
             
             {/* Modal Image Gallery */}
-            <div className="w-full md:w-1/2 bg-[#EAE2D6] relative min-h-[40vh] md:min-h-[60vh] flex flex-col">
+            <div className="w-full md:w-1/2 bg-[#EAE2D6] relative min-h-[40vh] md:min-h-[60vh] flex flex-col border-b md:border-b-0 md:border-r border-[#D1C7BD]">
               <div className="flex-1 relative">
                 <img src={(selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[activeImageIndex] : selectedProduct.image_url} alt={selectedProduct.name} className="absolute inset-0 w-full h-full object-cover" />
               </div>
@@ -202,7 +209,7 @@ export default function AkuOyiboWaitlist() {
 
             {/* Modal Details */}
             <div className="w-full md:w-1/2 p-8 sm:p-12 flex flex-col justify-center">
-              {selectedProduct.badge && <span className="inline-block bg-[#A3523B] text-white text-[8px] px-2 py-1 uppercase tracking-widest font-bold mb-4 self-start">{selectedProduct.badge}</span>}
+              {selectedProduct.badge && <span className="inline-block bg-[#A3523B] text-white text-[8px] px-2 py-1 uppercase tracking-widest font-bold mb-4 self-start shadow-sm">{selectedProduct.badge}</span>}
               <h2 className="text-2xl md:text-3xl font-serif uppercase text-[#4A3025] mb-2">{selectedProduct.name}</h2>
               <p className="text-[14px] font-bold tracking-widest text-[#A3523B] mb-8">{selectedProduct.price}</p>
               
@@ -216,7 +223,7 @@ export default function AkuOyiboWaitlist() {
                 closeModal();
                 setFormData(prev => ({ ...prev, designInterest: selectedProduct.name }));
                 setTimeout(() => document.getElementById('waitlist-form').scrollIntoView({ behavior: 'smooth' }), 300);
-              }} className="bg-[#4A3025] text-white px-8 py-4 text-[10px] tracking-[0.2em] uppercase font-bold hover:bg-[#34211A] transition-colors w-full sm:w-auto text-center">
+              }} className="bg-[#4A3025] text-white px-8 py-4 text-[10px] tracking-[0.2em] uppercase font-bold hover:bg-[#34211A] shadow-md hover:shadow-lg transition-all w-full sm:w-auto text-center rounded-sm">
                 PRE-ORDER INTEREST →
               </button>
             </div>
