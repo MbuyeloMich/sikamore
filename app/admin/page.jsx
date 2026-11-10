@@ -64,7 +64,10 @@ export default function AdminDashboard() {
   const [waitlistMode, setWaitlistMode] = useState('leads');
   const [waitlistLeads, setWaitlistLeads] = useState([]);
   const [waitlistProducts, setWaitlistProducts] = useState([]);
-  const [newWaitlistProduct, setNewWaitlistProduct] = useState({ name: '', price: '', badge: '', file: null, preview: '' });
+  const [newWaitlistProduct, setNewWaitlistProduct] = useState({ name: '', price: '', badge: '', description: '', files: [], previews: [] });
+  const [editingWaitlistProduct, setEditingWaitlistProduct] = useState(null);
+  const [editWaitlistFiles, setEditWaitlistFiles] = useState([]);
+  const [editWaitlistPreviews, setEditWaitlistPreviews] = useState([]);
   const [isDeployingWaitlist, setIsDeployingWaitlist] = useState(false);
 
   // OTHER DATA STATES
@@ -193,6 +196,7 @@ export default function AdminDashboard() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'waitlist_products' }, (payload) => {
         if (payload.eventType === 'INSERT') setWaitlistProducts(prev => [payload.new, ...prev]);
+        if (payload.eventType === 'UPDATE') setWaitlistProducts(prev => prev.map(p => p.id === payload.new.id ? payload.new : p));
         if (payload.eventType === 'DELETE') setWaitlistProducts(prev => prev.filter(p => p.id !== payload.old.id));
       })
       .subscribe();
@@ -268,31 +272,39 @@ export default function AdminDashboard() {
   };
 
   // --- WAITLIST / CLOUDFLARE UPLOAD LOGIC ---
+  const handleWaitlistImageChange = (e, isEdit = false) => {
+    const selectedFiles = Array.from(e.target.files).slice(0, 5);
+    if (selectedFiles.length > 0) {
+      const previews = selectedFiles.map(file => URL.createObjectURL(file));
+      if (isEdit) {
+        setEditWaitlistFiles(selectedFiles);
+        setEditWaitlistPreviews(previews);
+      } else {
+        setNewWaitlistProduct(prev => ({ ...prev, files: selectedFiles, previews }));
+      }
+    }
+  };
+
   const handleWaitlistProductUpload = async (e) => {
     e.preventDefault();
-    if (!newWaitlistProduct.file || !newWaitlistProduct.name || !newWaitlistProduct.price) {
-      return showToast("PLEASE COMPLETE ALL REQUIRED FIELDS AND ATTACH AN IMAGE.");
+    if (newWaitlistProduct.files.length === 0 || !newWaitlistProduct.name || !newWaitlistProduct.price) {
+      return showToast("PLEASE COMPLETE ALL REQUIRED FIELDS AND ATTACH AT LEAST ONE IMAGE.");
     }
     
     setIsDeployingWaitlist(true);
-    showToast("UPLOADING SECURE ASSET TO CLOUDFLARE R2...");
+    showToast("UPLOADING SECURE ASSETS TO CLOUDFLARE R2...");
 
     try {
-      const formData = new FormData();
-      formData.append("file", newWaitlistProduct.file);
-
-      const uploadRes = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      
-      const resData = await uploadRes.json();
-      
-      if (resData.error || !resData.url) {
-        throw new Error(resData.error || "Failed to retrieve Cloudflare URL");
+      let uploadedUrls = [];
+      for (const file of newWaitlistProduct.files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+        const resData = await uploadRes.json();
+        if (resData.error || !resData.url) throw new Error(resData.error || "Failed to retrieve Cloudflare URL");
+        uploadedUrls.push(resData.url);
+        await networkDelay(300);
       }
-
-      const cloudflareImageUrl = resData.url;
 
       const { error: dbError } = await supabase
         .from('waitlist_products')
@@ -301,18 +313,71 @@ export default function AdminDashboard() {
             name: newWaitlistProduct.name.toUpperCase(), 
             price: `₦${parseFloat(newWaitlistProduct.price).toLocaleString()}`, 
             badge: newWaitlistProduct.badge ? newWaitlistProduct.badge.toUpperCase() : null,
-            image_url: cloudflareImageUrl 
+            description: newWaitlistProduct.description,
+            image_url: uploadedUrls[0], 
+            images: uploadedUrls
           }
         ]);
         
       if (dbError) throw dbError;
       
       showToast("WAITLIST ITEM DEPLOYED SUCCESSFULLY.");
-      setNewWaitlistProduct({ name: '', price: '', badge: '', file: null, preview: '' });
-      document.getElementById('waitlist-image-input').value = '';
+      setNewWaitlistProduct({ name: '', price: '', badge: '', description: '', files: [], previews: [] });
+      if (document.getElementById('waitlist-image-input')) document.getElementById('waitlist-image-input').value = '';
       
     } catch (err) {
       showToast(`UPLOAD ERROR: ${err.message.toUpperCase()}`);
+    } finally {
+      setIsDeployingWaitlist(false);
+    }
+  };
+
+  const startEditingWaitlistProduct = (product) => {
+    setEditingWaitlistProduct({ ...product, rawPrice: product.price.replace(/[^\d]/g, '') });
+    setEditWaitlistFiles([]);
+    setEditWaitlistPreviews([]);
+    document.getElementById('waitlist-deploy-section')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const submitEditWaitlistProduct = async (e) => {
+    e.preventDefault();
+    setIsDeployingWaitlist(true);
+
+    try {
+      let finalImageUrls = editingWaitlistProduct.images || [editingWaitlistProduct.image_url];
+
+      if (editWaitlistFiles.length > 0) {
+        finalImageUrls = []; 
+        showToast('UPDATING IMAGES TO CLOUDFLARE...');
+
+        for (const file of editWaitlistFiles) {
+          const formData = new FormData();
+          formData.append("file", file);
+          const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+          const resData = await uploadRes.json();
+          if (resData.error || !resData.url) throw new Error(resData.error || "Failed to retrieve Cloudflare URL");
+          finalImageUrls.push(resData.url);
+          await networkDelay(300);
+        }
+      }
+
+      const { error: dbError } = await supabase.from('waitlist_products').update({
+        name: editingWaitlistProduct.name.toUpperCase(),
+        price: `₦${parseFloat(editingWaitlistProduct.rawPrice).toLocaleString()}`,
+        badge: editingWaitlistProduct.badge ? editingWaitlistProduct.badge.toUpperCase() : null,
+        description: editingWaitlistProduct.description,
+        image_url: finalImageUrls[0],
+        images: finalImageUrls
+      }).eq('id', editingWaitlistProduct.id);
+
+      if (dbError) throw dbError;
+
+      showToast("WAITLIST ITEM UPDATED SUCCESSFULLY.");
+      setEditingWaitlistProduct(null);
+      setEditWaitlistFiles([]);
+      setEditWaitlistPreviews([]);
+    } catch (error) {
+      showToast(`UPDATE ERROR: ${error.message.toUpperCase()}`);
     } finally {
       setIsDeployingWaitlist(false);
     }
@@ -800,10 +865,10 @@ export default function AdminDashboard() {
         {activeTab === 'waitlist' && (
           <div className="animate-fade-in space-y-6">
             <div className="flex border-b border-zinc-200 pb-2">
-              <button onClick={() => setWaitlistMode('leads')} className={`px-4 py-2 text-[10px] tracking-[0.2em] uppercase transition-colors ${waitlistMode === 'leads' ? 'text-black font-bold border-b-2 border-black' : 'text-zinc-400 hover:text-black'}`}>
+              <button onClick={() => { setWaitlistMode('leads'); setEditingWaitlistProduct(null); }} className={`px-4 py-2 text-[10px] tracking-[0.2em] uppercase transition-colors ${waitlistMode === 'leads' ? 'text-black font-bold border-b-2 border-black' : 'text-zinc-400 hover:text-black'}`}>
                 Captured Leads
               </button>
-              <button onClick={() => setWaitlistMode('products')} className={`px-4 py-2 text-[10px] tracking-[0.2em] uppercase transition-colors ${waitlistMode === 'products' ? 'text-black font-bold border-b-2 border-black' : 'text-zinc-400 hover:text-black'}`}>
+              <button onClick={() => { setWaitlistMode('products'); setEditingWaitlistProduct(null); }} className={`px-4 py-2 text-[10px] tracking-[0.2em] uppercase transition-colors ${waitlistMode === 'products' ? 'text-black font-bold border-b-2 border-black' : 'text-zinc-400 hover:text-black'}`}>
                 Campaign Items (Cloudflare)
               </button>
             </div>
@@ -855,42 +920,57 @@ export default function AdminDashboard() {
 
             {waitlistMode === 'products' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Upload Form targeting Cloudflare */}
-                <div className="bg-white p-6 sm:p-10 shadow-sm border border-zinc-200 rounded-sm">
-                  <h3 className="text-xs uppercase tracking-widest font-medium border-b border-zinc-200 pb-4 mb-6">Deploy Campaign Item</h3>
-                  <form onSubmit={handleWaitlistProductUpload} className="space-y-6">
+                {/* Upload / Edit Form targeting Cloudflare */}
+                <div className="bg-white p-6 sm:p-10 shadow-sm border border-zinc-200 rounded-sm" id="waitlist-deploy-section">
+                  <h3 className="text-xs uppercase tracking-widest font-medium border-b border-zinc-200 pb-4 mb-6">
+                    {editingWaitlistProduct ? 'Edit Campaign Item' : 'Deploy Campaign Item'}
+                  </h3>
+                  <form onSubmit={editingWaitlistProduct ? submitEditWaitlistProduct : handleWaitlistProductUpload} className="space-y-6">
                     <div>
                       <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase">Product Name</label>
-                      <input type="text" required placeholder="E.G. AKU OYIBO (CORAL)" value={newWaitlistProduct.name} onChange={e => setNewWaitlistProduct({...newWaitlistProduct, name: e.target.value})} className="w-full bg-zinc-50 p-3 border border-zinc-200 focus:border-black outline-none text-[10px] text-black uppercase tracking-widest"/>
+                      <input type="text" required placeholder="E.G. AKU OYIBO (CORAL)" value={editingWaitlistProduct ? editingWaitlistProduct.name : newWaitlistProduct.name} onChange={e => editingWaitlistProduct ? setEditingWaitlistProduct({...editingWaitlistProduct, name: e.target.value}) : setNewWaitlistProduct({...newWaitlistProduct, name: e.target.value})} className="w-full bg-zinc-50 p-3 border border-zinc-200 focus:border-black outline-none text-[10px] text-black uppercase tracking-widest"/>
                     </div>
                     <div>
-                      <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase">Price Format (String)</label>
-                      <input type="number" required placeholder="E.G. 360000" value={newWaitlistProduct.price} onChange={e => setNewWaitlistProduct({...newWaitlistProduct, price: e.target.value})} className="w-full bg-zinc-50 p-3 border border-zinc-200 focus:border-black outline-none text-[10px] text-black tracking-widest"/>
+                      <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase">Price (Numeric String)</label>
+                      <input type="number" required placeholder="E.G. 360000" value={editingWaitlistProduct ? editingWaitlistProduct.rawPrice : newWaitlistProduct.price} onChange={e => editingWaitlistProduct ? setEditingWaitlistProduct({...editingWaitlistProduct, rawPrice: e.target.value}) : setNewWaitlistProduct({...newWaitlistProduct, price: e.target.value})} className="w-full bg-zinc-50 p-3 border border-zinc-200 focus:border-black outline-none text-[10px] text-black tracking-widest"/>
                     </div>
                     <div>
                       <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase">Badge (Optional)</label>
-                      <input type="text" placeholder="E.G. LIMITED MATERIAL" value={newWaitlistProduct.badge} onChange={e => setNewWaitlistProduct({...newWaitlistProduct, badge: e.target.value})} className="w-full bg-zinc-50 p-3 border border-zinc-200 focus:border-black outline-none text-[10px] text-black uppercase tracking-widest"/>
+                      <input type="text" placeholder="E.G. LIMITED MATERIAL" value={editingWaitlistProduct ? editingWaitlistProduct.badge : newWaitlistProduct.badge} onChange={e => editingWaitlistProduct ? setEditingWaitlistProduct({...editingWaitlistProduct, badge: e.target.value}) : setNewWaitlistProduct({...newWaitlistProduct, badge: e.target.value})} className="w-full bg-zinc-50 p-3 border border-zinc-200 focus:border-black outline-none text-[10px] text-black uppercase tracking-widest"/>
+                    </div>
+                    <div>
+                      <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase">Editorial Description</label>
+                      <textarea rows="3" placeholder="Enter rich product story for the modal..." value={editingWaitlistProduct ? editingWaitlistProduct.description : newWaitlistProduct.description} onChange={e => editingWaitlistProduct ? setEditingWaitlistProduct({...editingWaitlistProduct, description: e.target.value}) : setNewWaitlistProduct({...newWaitlistProduct, description: e.target.value})} className="w-full bg-zinc-50 p-3 border border-zinc-200 focus:border-black outline-none text-[10px] text-black resize-none"></textarea>
                     </div>
                     <div>
                       <label className="block text-[8px] tracking-[0.2em] text-zinc-500 mb-2 uppercase flex justify-between">
-                        <span>Campaign Image</span>
+                        <span>Campaign Gallery (Up to 5)</span>
                         <span className="text-blue-500 font-bold tracking-widest">R2 ZERO-EGRESS</span>
                       </label>
-                      <input id="waitlist-image-input" type="file" required accept="image/jpeg, image/png, image/webp" onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) setNewWaitlistProduct({...newWaitlistProduct, file, preview: URL.createObjectURL(file)});
-                      }} className="w-full text-[9px] file:mr-4 file:py-2 file:px-4 file:border file:border-zinc-200 file:text-[8px] file:tracking-widest file:bg-zinc-100 file:text-black file:uppercase file:cursor-pointer text-zinc-600 hover:file:bg-zinc-200 transition-colors" />
+                      <input id="waitlist-image-input" type="file" multiple accept="image/jpeg, image/png, image/webp" onChange={e => handleWaitlistImageChange(e, !!editingWaitlistProduct)} className="w-full text-[9px] file:mr-4 file:py-2 file:px-4 file:border file:border-zinc-200 file:text-[8px] file:tracking-widest file:bg-zinc-100 file:text-black file:uppercase file:cursor-pointer text-zinc-600 hover:file:bg-zinc-200 transition-colors" />
                     </div>
                     
-                    {newWaitlistProduct.preview && (
-                      <div className="w-24 h-32 border border-zinc-200 p-1">
-                        <img src={newWaitlistProduct.preview} className="w-full h-full object-cover" alt="Upload Preview" />
-                      </div>
-                    )}
+                    <div className="flex gap-2 flex-wrap">
+                      {(editingWaitlistProduct 
+                        ? (editWaitlistPreviews.length > 0 ? editWaitlistPreviews : (editingWaitlistProduct.images || [editingWaitlistProduct.image_url])) 
+                        : newWaitlistProduct.previews
+                      ).map((p, i) => (
+                        <div key={i} className="w-16 h-20 border border-zinc-200 p-1">
+                          <img src={p} className="w-full h-full object-cover" alt="Preview" />
+                        </div>
+                      ))}
+                    </div>
                     
-                    <button type="submit" disabled={isDeployingWaitlist} className="w-full bg-black text-white py-4 text-[10px] tracking-[0.3em] uppercase hover:bg-zinc-800 font-medium transition-colors disabled:opacity-50 mt-2">
-                      {isDeployingWaitlist ? 'DEPLOYING TO CLOUDFLARE...' : 'UPLOAD ITEM'}
-                    </button>
+                    <div className="flex gap-4 mt-2">
+                      <button type="submit" disabled={isDeployingWaitlist} className="flex-1 bg-black text-white py-4 text-[10px] tracking-[0.3em] uppercase hover:bg-zinc-800 font-medium transition-colors disabled:opacity-50">
+                        {isDeployingWaitlist ? 'UPLOADING...' : editingWaitlistProduct ? 'SAVE CHANGES' : 'UPLOAD ITEM'}
+                      </button>
+                      {editingWaitlistProduct && (
+                        <button type="button" onClick={() => setEditingWaitlistProduct(null)} className="px-6 border border-zinc-200 text-[9px] uppercase tracking-widest hover:bg-zinc-100 transition-colors">
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </form>
                 </div>
 
@@ -903,13 +983,16 @@ export default function AdminDashboard() {
                     <div className="grid grid-cols-2 gap-4">
                       {waitlistProducts.map(wp => (
                         <div key={wp.id} className="border border-zinc-200 bg-zinc-50 p-3 flex flex-col group relative">
-                          <button onClick={() => handleDeleteWaitlistProduct(wp.id)} className="absolute top-2 right-2 bg-white border border-red-200 text-red-500 w-6 h-6 flex items-center justify-center text-[10px] hover:bg-red-50 z-10 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
                           <div className="w-full aspect-[4/5] bg-white border border-zinc-200 overflow-hidden mb-3 relative">
                             {wp.badge && <span className="absolute top-1 left-1 bg-black text-white text-[6px] px-1.5 py-0.5 uppercase tracking-widest z-10">{wp.badge}</span>}
                             <img src={wp.image_url} alt={wp.name} className="w-full h-full object-cover" />
                           </div>
                           <h4 className="text-[9px] uppercase tracking-wider text-black font-medium">{wp.name}</h4>
-                          <p className="text-[8px] text-zinc-500 font-mono mt-1">{wp.price}</p>
+                          <p className="text-[8px] text-zinc-500 font-mono mt-1 mb-3">{wp.price}</p>
+                          <div className="flex gap-2 mt-auto">
+                            <button onClick={() => startEditingWaitlistProduct(wp)} className="flex-1 border border-zinc-200 bg-white hover:bg-zinc-100 text-black py-2 text-[8px] uppercase tracking-widest transition-colors">Edit</button>
+                            <button onClick={() => handleDeleteWaitlistProduct(wp.id)} className="flex-1 border border-red-200 bg-white hover:bg-red-50 text-red-600 py-2 text-[8px] uppercase tracking-widest transition-colors">Delete</button>
+                          </div>
                         </div>
                       ))}
                     </div>
