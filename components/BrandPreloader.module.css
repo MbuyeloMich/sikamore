@@ -1,0 +1,227 @@
+.preloader {
+  position: fixed;
+  z-index: 1000001;
+  inset: 0;
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+  isolation: isolate;
+  background: linear-gradient(
+    180deg,
+    #e7e2ff 0%,
+    #a597fb 24%,
+    #5543ec 42%,
+    #3a2bdc 58%,
+    #1c1690 74%,
+    #0a0826 90%,
+    #08071c 100%
+  );
+  opacity: 1;
+  transition: opacity 1400ms cubic-bezier(0.76, 0, 0.24, 1),
+    transform 1400ms cubic-bezier(0.76, 0, 0.24, 1);
+}
+
+.preloader::before,
+.preloader::after,
+.glow {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.preloader::before {
+  inset: -35%;
+  background:
+    radial-gradient(ellipse at 24% 38%, rgba(244, 241, 255, 0.76), transparent 28%),
+    radial-gradient(ellipse at 78% 28%, rgba(138, 119, 255, 0.45), transparent 32%),
+    radial-gradient(ellipse at 60% 83%, rgba(71, 61, 220, 0.74), transparent 36%);
+  filter: blur(35px);
+  animation: waveField 8s ease-in-out infinite alternate;
+  content: '';
+}
+
+.preloader::after {
+  inset: 0;
+  background: linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.12) 48%, transparent 68%);
+  opacity: 0.5;
+  transform: translateX(-100%);
+  animation: slowShimmer 5.2s ease-in-out infinite;
+  content: '';
+}
+
+.glow {
+  width: min(80vw, 780px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(210, 204, 255, 0.42), rgba(137, 124, 255, 0.12) 42%, transparent 72%);
+  filter: blur(36px);
+  animation: breathe 5s ease-in-out infinite alternate;
+}
+
+.filters {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.content {
+  display: flex;
+  width: min(88vw, 620px);
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: contentArrive 1800ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.markWrap {
+  display: grid;
+  width: clamp(210px, 30vw, 410px);
+  aspect-ratio: 1;
+  place-items: center;
+  animation: markFloat 7s ease-in-out infinite;
+}
+
+.mark {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: url(#unruly-liquid-warp) brightness(0) invert(1) drop-shadow(0 10px 40px rgba(244, 241, 255, 0.38));
+  mix-blend-mode: screen;
+  opacity: 0.9;
+  animation: liquidLight 4s ease-in-out infinite;
+  user-select: none;
+}
+
+.wordmark {
+  margin: -20px 0 0;
+  color: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(18px, 2.5vw, 27px);
+  font-weight: 700;
+  letter-spacing: 0.48em;
+  padding-left: 0.48em;
+}
+
+.loadingLine {
+  width: min(180px, 42vw);
+  height: 1px;
+  overflow: hidden;
+  margin-top: 30px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.loadingLine span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.75);
+  animation: loadingSweep 2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+.caption {
+  margin: 14px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  padding-left: 0.3em;
+}
+
+.leaving {
+  opacity: 0;
+  transform: scale(1.035);
+  pointer-events: none;
+}
+
+@keyframes waveField {
+  0% {
+    transform: translate3d(-4%, -2%, 0) rotate(-8deg) scale(0.96);
+  }
+  100% {
+    transform: translate3d(4%, 3%, 0) rotate(9deg) scale(1.08);
+  }
+}
+
+@keyframes slowShimmer {
+  0%,
+  28% {
+    transform: translateX(-100%);
+  }
+  78%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes breathe {
+  from {
+    opacity: 0.56;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes markFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-2deg);
+  }
+  50% {
+    transform: translate3d(0, -13px, 0) rotate(2deg);
+  }
+}
+
+@keyframes liquidLight {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes loadingSweep {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@keyframes contentArrive {
+  from {
+    opacity: 0;
+    filter: blur(14px);
+    transform: translate3d(0, 26px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preloader {
+    transition: none;
+  }
+
+  .preloader::before,
+  .preloader::after,
+  .glow,
+  .content,
+  .markWrap,
+  .mark,
+  .loadingLine span {
+    animation: none;
+  }
+}

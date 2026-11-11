@@ -1,154 +1,347 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useApp } from '../../providers';
-import { createClient } from '@supabase/supabase-js';
+import { isSupabaseConfigured, supabase } from '../../../lib/supabase';
+import styles from './product.module.css';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const currencySymbols = { NGN: '₦', USD: '$', GBP: '£', EUR: '€' };
+const sizeOptions = ['S', 'M', 'L', 'XL'];
 
-const extractCleanUrls = (payload) => {
-  if (!payload) return [];
-  try {
-    let raw = JSON.stringify(payload);
-    raw = raw.replace(/["'\[\]{}\s]/g, '');
-    return raw.split(',').filter(u => u.startsWith('http'));
-  } catch (e) {
-    return [];
+function getProductImages(payload) {
+  const images = [];
+
+  function collect(value) {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach(collect);
+      return;
+    }
+    if (typeof value === 'object') {
+      Object.values(value).forEach(collect);
+      return;
+    }
+    if (typeof value !== 'string') return;
+
+    const trimmed = value.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed !== value) {
+          collect(parsed);
+          return;
+        }
+      } catch {
+        return;
+      }
+    }
+
+    const matches = trimmed.match(/https?:\/\/[^\s,;"'\[\]{}]+|\/[A-Za-z0-9_./-]+\.(?:jpe?g|png|webp|avif)/gi);
+    if (matches) images.push(...matches);
   }
-};
 
-const getPrimaryImage = (payload) => {
-  const urls = extractCleanUrls(payload);
-  return urls.length > 0 ? urls[0] : '';
-};
+  collect(payload);
+  return [...new Set(images)];
+}
 
-// Generates URL friendly names
-const generateSlug = (name) => {
-  if (!name) return '';
+function generateSlug(name) {
   return name.toString().toLowerCase().trim()
     .replace(/\s+/g, '-')
     .replace(/[^\w\-]+/g, '')
     .replace(/\-\-+/g, '-');
-};
+}
 
 export default function ClientView({ product }) {
-  const { addToCart, wishlist, toggleWishlist, setIsCartOpen, showToast } = useApp();
-  
-  const [imgIndex, setImgIndex] = useState(0);
-  const [qty, setQty] = useState(1);
+  const { addToCart, wishlist, toggleWishlist, showToast } = useApp();
   const [selectedSize, setSelectedSize] = useState('M');
-  const [openAccordion, setOpenAccordion] = useState('description');
+  const [quantity, setQuantity] = useState(1);
+  const [openAccordion, setOpenAccordion] = useState('details');
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currency, setCurrency] = useState('NGN');
   const [usdToNgnRate, setUsdToNgnRate] = useState(1500);
-  
+
+  const productImages = getProductImages(product.image);
+  const isClothing = product.category?.toLowerCase() === 'clothing';
+  const hasPrice = Number.isFinite(Number(product.price)) && Number(product.price) > 0;
+  const isWishlisted = wishlist.some(item => item.id === String(product.id));
+
   useEffect(() => {
-    supabase.from('shipping_settings').select('usd_to_ngn_rate').eq('id', 1).single().then(({ data }) => {
-      if (data && data.usd_to_ngn_rate) setUsdToNgnRate(parseFloat(data.usd_to_ngn_rate));
-    });
-    
-    fetch('https://ipapi.co/json/').then(r => r.json()).then(data => {
-      if (data && data.country_code) {
-        if (data.country_code === 'NG') setCurrency('NGN');
-        else if (data.country_code === 'GB') setCurrency('GBP');
-        else if (data.in_eu) setCurrency('EUR');
-        else setCurrency('USD');
+    if (!isSupabaseConfigured) return undefined;
+    let active = true;
+
+    async function loadCurrencySettings() {
+      const { data, error } = await supabase
+        .from('shipping_settings')
+        .select('usd_to_ngn_rate')
+        .eq('id', 1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Could not load currency settings:', error);
+      } else if (active && data?.usd_to_ngn_rate) {
+        setUsdToNgnRate(Number(data.usd_to_ngn_rate));
       }
-    }).catch(() => {});
+    }
+
+    loadCurrencySettings().catch(error => console.error('Could not load currency settings:', error));
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const formatPrice = (ngnPrice) => {
-    const rate = { NGN: 1, USD: 1 / usdToNgnRate, GBP: 1 / (usdToNgnRate * 1.32), EUR: 1 / (usdToNgnRate * 1.12) }[currency] || 1;
-    const converted = Number(ngnPrice) * rate;
-    return currency === 'NGN' ? `₦${Math.round(converted).toLocaleString()}` : `${currencySymbols[currency] || '$'}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  useEffect(() => {
+    if (productImages.length < 2) return undefined;
+
+    const observer = new IntersectionObserver(entries => {
+      const visibleImage = entries
+        .filter(entry => entry.isIntersecting)
+        .sort((first, second) => second.intersectionRatio - first.intersectionRatio)[0];
+      if (visibleImage) {
+        setCurrentImageIndex(Number(visibleImage.target.dataset.productImageIndex));
+      }
+    }, { threshold: [0.35, 0.6, 0.85] });
+
+    document.querySelectorAll('[data-product-image-index]').forEach(image => observer.observe(image));
+    return () => observer.disconnect();
+  }, [productImages.length]);
+
+  const formatPrice = value => {
+    if (!Number.isFinite(Number(value)) || Number(value) <= 0) return 'Price on request';
+    const rates = {
+      NGN: 1,
+      USD: 1 / usdToNgnRate,
+      GBP: 1 / (usdToNgnRate * 1.32),
+      EUR: 1 / (usdToNgnRate * 1.12),
+    };
+    const converted = Number(value) * (rates[currency] || 1);
+    if (currency === 'NGN') return `₦${Math.round(converted).toLocaleString()}`;
+    return `${currencySymbols[currency]}${converted.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   };
 
-  const handleAddToCart = () => {
-    addToCart({ id: String(product.id), name: product.name, price: product.price, image: getPrimaryImage(product.image), is_sold_out: product.is_sold_out }, qty, selectedSize);
+  function handleAddToCart() {
+    if (!hasPrice || product.is_sold_out) return;
+    addToCart(
+      {
+        id: String(product.id),
+        name: product.name,
+        price: Number(product.price),
+        image: productImages[0] || '',
+        is_sold_out: product.is_sold_out,
+      },
+      quantity,
+      isClothing ? selectedSize : 'One size',
+    );
     showToast('Added to your cart.');
-    // REMOVED: setIsCartOpen(true); -> Now it adds silently!
-  };
+  }
 
-  const copyToClipboard = () => {
-    const slug = generateSlug(product.name);
-    navigator.clipboard.writeText(`https://ssikamore.com/product/${slug}`);
-    showToast('Link copied! Ready to share.');
-  };
+  function shareProduct() {
+    if (!navigator.clipboard?.writeText) {
+      showToast('Sharing is unavailable in this browser.');
+      return;
+    }
 
-  const productTabs = [
-    { id: 'description', title: 'The Details', content: product.description || "A beautifully detailed silhouette crafted to elevate your everyday wardrobe." },
-    { id: 'additional', title: 'Additional Info', content: product.additional_information || "Designed in-house. Dry clean recommended." },
-    { id: 'policies', title: 'Store Policies', content: product.store_policies || "Worldwide shipping available. Returns accepted within 14 days." },
-    { id: 'inquiries', title: 'Inquiries', content: product.inquiries || "Reach out to our Client Advisory team for styling or fit questions." }
+    navigator.clipboard.writeText(`${window.location.origin}/product/${generateSlug(product.name)}`)
+      .then(() => showToast('Product link copied.'))
+      .catch(error => {
+        console.error('Could not copy product link:', error);
+        showToast('Could not copy the product link.');
+      });
+  }
+
+  const productDetails = [
+    {
+      id: 'details',
+      title: 'Details',
+      content: product.description || 'Made to move with you. Considered details and a comfortable, everyday fit.',
+    },
+    {
+      id: 'materials',
+      title: 'Materials & care',
+      content: product.additional_information || 'Please refer to the garment label for care instructions.',
+    },
+    {
+      id: 'shipping',
+      title: 'Shipping & returns',
+      content: product.store_policies || 'Shipping options and delivery estimates are shown at checkout.',
+    },
   ];
 
   return (
-    <div className="min-h-screen bg-white text-black font-sans antialiased flex flex-col">
-      <header className="border-b border-zinc-200 h-20 bg-white flex items-center shrink-0">
-        <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-8 flex items-center justify-between">
-          <Link href="/shop" className="text-[9px] uppercase tracking-widest text-zinc-500 hover:text-black transition-colors">&larr; Back to Collection</Link>
-          <Link href="/" className="text-sm sm:text-lg font-serif uppercase tracking-[0.3em] font-bold">S. SIKAMÒRE</Link>
-          <div className="w-[100px] text-right">
-            <button onClick={copyToClipboard} className="text-[9px] uppercase tracking-widest text-black border border-black px-3 py-1.5 hover:bg-black hover:text-white transition-colors">Share</button>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-[1600px] w-full mx-auto flex flex-col md:flex-row pb-32 md:pb-0">
-        <div className="w-full md:w-1/2 bg-zinc-50 relative aspect-[3/4] md:aspect-auto md:min-h-screen overflow-hidden">
-          {extractCleanUrls(product.image)[imgIndex] && (
-            <img src={extractCleanUrls(product.image)[imgIndex]} alt={product.name} className="absolute inset-0 w-full h-full object-cover animate-fade-in" />
+    <div className={styles.page}>
+      <main className={styles.layout}>
+        <section className={styles.gallery} aria-label={`${product.name} product images`}>
+          {productImages.length > 0 ? productImages.map((image, index) => (
+            <figure
+              className={styles.imagePanel}
+              id={`product-image-${index}`}
+              data-product-image-index={index}
+              key={`${image}-${index}`}
+            >
+              <img src={image} alt={`${product.name}, view ${index + 1}`} className={styles.image} />
+              <figcaption className={styles.imageCount}>
+                {String(index + 1).padStart(2, '0')} <span>/</span> {String(productImages.length).padStart(2, '0')}
+              </figcaption>
+            </figure>
+          )) : (
+            <div className={styles.emptyImage} role="img" aria-label={`${product.name} image unavailable`}>
+              Image coming soon
+            </div>
           )}
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-4">
-            <button onClick={() => { const arr = extractCleanUrls(product.image); if (arr.length > 0) setImgIndex(prev => (prev - 1 + arr.length) % arr.length); }} className="w-10 h-10 bg-white text-black flex items-center justify-center rounded-full shadow-lg active:scale-95"><svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg></button>
-            <button onClick={() => { const arr = extractCleanUrls(product.image); if (arr.length > 0) setImgIndex(prev => (prev + 1) % arr.length); }} className="w-10 h-10 bg-white text-black flex items-center justify-center rounded-full shadow-lg active:scale-95"><svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg></button>
+          <div className={styles.galleryNote}>
+            <span>UNNULY — COLLECTION</span>
+            <button type="button" onClick={shareProduct}>Share piece ↗</button>
           </div>
-        </div>
-        
-        <div className="w-full md:w-1/2 p-6 sm:p-14 flex flex-col justify-start">
-          <div className="flex justify-between items-start mb-1">
-            <h1 className="text-xl sm:text-2xl font-normal tracking-[0.2em] uppercase font-serif pr-4">{product.name}</h1>
-            <button onClick={() => toggleWishlist({ id: String(product.id), name: product.name, price: product.price, image: getPrimaryImage(product.image) })} className="text-black hover:scale-110 transition-transform"><svg className="w-5 h-5" fill={wishlist.some(w => w.id === String(product.id)) ? "#D31313" : "none"} stroke={wishlist.some(w => w.id === String(product.id)) ? "#D31313" : "currentColor"} strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" /></svg></button>
-          </div>
-          <p className="text-sm tracking-widest font-medium mb-8 text-zinc-500">{formatPrice(product.price)}</p>
+        </section>
 
-          <div className="mb-6">
-            <span className="text-[9px] tracking-widest uppercase text-zinc-400 block mb-3">Select Size</span>
-            <div className="flex gap-3">
-              {['S', 'M', 'L'].map(s => <button key={s} onClick={() => setSelectedSize(s)} className={`w-10 h-10 flex items-center justify-center text-xs border transition-colors ${selectedSize === s ? 'border-black bg-black text-white' : 'border-zinc-200 hover:border-black'}`}>{s}</button>)}
+        <aside className={styles.productInfo}>
+          <div className={styles.breadcrumbs}>
+            <Link href="/collections">All products</Link>
+            <span>/</span>
+            <span>{product.category || 'Collection'}</span>
+          </div>
+
+          <div className={styles.nameRow}>
+            <div>
+              <p className={styles.productType}>{product.category || 'UNNULY STUDIO'}</p>
+              <h1 className={styles.name}>{product.name}</h1>
             </div>
-          </div>
-          
-          <div className="flex items-center gap-4 mb-8">
-            <div className="flex items-center border border-zinc-200">
-              <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-black">-</button>
-              <span className="w-10 text-center text-sm font-mono">{qty}</span>
-              <button onClick={() => setQty(qty + 1)} className="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-black">+</button>
-            </div>
+            <button
+              type="button"
+              onClick={() => toggleWishlist({
+                id: String(product.id),
+                name: product.name,
+                price: product.price,
+                image: productImages[0] || '',
+              })}
+              aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+              aria-pressed={isWishlisted}
+              className={styles.wishlist}
+            >
+              <svg viewBox="0 0 24 24" fill={isWishlisted ? 'currentColor' : 'none'} aria-hidden="true">
+                <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />
+              </svg>
+            </button>
           </div>
 
-          <button onClick={handleAddToCart} disabled={product.is_sold_out} className={`w-full py-4 text-[10px] tracking-[0.2em] uppercase font-bold transition-colors ${product.is_sold_out ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed' : 'bg-black text-white hover:bg-zinc-800'}`}>
-            {product.is_sold_out ? 'Sold Out' : `Add to Cart • ${formatPrice(product.price * qty)}`}
-          </button>
+          <div className={styles.priceRow}>
+            <p className={styles.price}>{formatPrice(product.price)}</p>
+            {hasPrice && (
+              <label className={styles.currencyControl}>
+                <span className={styles.visuallyHidden}>Currency</span>
+                <select value={currency} onChange={event => setCurrency(event.target.value)}>
+                  <option value="NGN">NGN ₦</option>
+                  <option value="USD">USD $</option>
+                  <option value="GBP">GBP £</option>
+                  <option value="EUR">EUR €</option>
+                </select>
+              </label>
+            )}
+          </div>
 
-          <div className="mt-12 border-t border-zinc-200">
-            {productTabs.map((tab) => (
-              <div key={tab.id} className="border-b border-zinc-200">
-                <button onClick={() => setOpenAccordion(openAccordion === tab.id ? '' : tab.id)} className="w-full py-5 flex justify-between items-center text-[10px] tracking-[0.2em] uppercase hover:text-zinc-500 transition-colors">
-                  {tab.title}
-                  <svg className={`w-4 h-4 transition-transform duration-300 ${openAccordion === tab.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                </button>
-                <div className={`overflow-hidden transition-all duration-300 ${openAccordion === tab.id ? 'max-h-96 opacity-100 mb-5' : 'max-h-0 opacity-0'}`}>
-                  <p className="text-xs text-zinc-500 leading-relaxed font-light whitespace-pre-wrap">{tab.content}</p>
-                </div>
+          {productImages.length > 0 && (
+            <div className={styles.imagePicker} aria-label="Product images">
+              <span className={styles.fieldLabel}>
+                IMG <span className={styles.imagePickerCount}>
+                  {String(currentImageIndex + 1).padStart(2, '0')} / {String(productImages.length).padStart(2, '0')}
+                </span>
+              </span>
+              <div className={styles.imageThumbnails}>
+                {productImages.map((image, index) => (
+                  <button
+                    type="button"
+                    key={`${image}-${index}`}
+                    className={styles.imageThumbnail}
+                    aria-label={`View image ${index + 1}`}
+                    onClick={() => document.getElementById(`product-image-${index}`)?.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'center',
+                    })}
+                  >
+                    <img src={image} alt="" />
+                  </button>
+                ))}
               </div>
+            </div>
+          )}
+
+          {isClothing && (
+            <fieldset className={styles.sizeField}>
+              <legend className={styles.fieldLabel}>Select size</legend>
+              <div className={styles.sizeGrid}>
+                {sizeOptions.map(size => (
+                  <button
+                    type="button"
+                    key={size}
+                    onClick={() => setSelectedSize(size)}
+                    aria-pressed={selectedSize === size}
+                    className={`${styles.sizeOption} ${selectedSize === size ? styles.sizeSelected : ''}`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+              <Link href="/contact" className={styles.sizeGuide}>Size & fit help ↗</Link>
+            </fieldset>
+          )}
+
+          <div className={styles.quantityRow}>
+            <span className={styles.fieldLabel}>Quantity</span>
+            <div className={styles.quantityControl}>
+              <button
+                type="button"
+                aria-label="Decrease quantity"
+                onClick={() => setQuantity(value => Math.max(1, value - 1))}
+              >
+                −
+              </button>
+              <span aria-live="polite">{quantity}</span>
+              <button
+                type="button"
+                aria-label="Increase quantity"
+                onClick={() => setQuantity(value => value + 1)}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            disabled={!hasPrice || product.is_sold_out}
+            className={styles.addButton}
+          >
+            <span>{product.is_sold_out ? 'Sold out' : hasPrice ? 'Add to bag' : 'Price on request'}</span>
+            <span>{hasPrice ? formatPrice(Number(product.price) * quantity) : '—'}</span>
+          </button>
+          <p className={styles.purchaseNote}>Taxes and shipping calculated at checkout.</p>
+
+          <div className={styles.accordions}>
+            {productDetails.map(detail => (
+              <section className={styles.accordion} key={detail.id}>
+                <button
+                  type="button"
+                  className={styles.accordionToggle}
+                  aria-expanded={openAccordion === detail.id}
+                  onClick={() => setOpenAccordion(openAccordion === detail.id ? '' : detail.id)}
+                >
+                  <span>{detail.title}</span>
+                  <span aria-hidden="true">{openAccordion === detail.id ? '−' : '+'}</span>
+                </button>
+                {openAccordion === detail.id && (
+                  <p className={styles.accordionContent}>{detail.content}</p>
+                )}
+              </section>
             ))}
           </div>
-        </div>
+        </aside>
       </main>
+
     </div>
   );
 }

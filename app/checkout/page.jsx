@@ -3,14 +3,10 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useApp } from '../providers';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from '../../lib/supabase';
 
 const currencySymbols = { NGN: '₦', USD: '$' };
 
@@ -369,7 +365,6 @@ export default function CheckoutPage() {
     <div className="min-h-screen bg-white text-black font-sans antialiased text-[11px] py-12 px-4 sm:px-8 max-w-[1400px] mx-auto animate-fade-in">
       
       <div className="mb-12 text-center border-b border-zinc-100 pb-8">
-        <Link href="/shop" className="text-xl font-normal tracking-[0.4em] uppercase font-serif text-black hover:text-zinc-500 transition-colors">S. SIKAMÒRE</Link>
         <p className="text-[8px] tracking-[0.25em] uppercase text-zinc-400 mt-2">Secure Checkout</p>
       </div>
 

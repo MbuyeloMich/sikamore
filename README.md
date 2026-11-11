@@ -18,3 +18,13 @@ A headless, high-performance luxury e-commerce platform built with Next.js, Reac
 
 ## 🛠️ Version Control & Deployment
 Managed via Git/GitHub and deployed seamlessly on Vercel with strict environment variable protection.
+
+## Local Development
+Collections and other product data require a Supabase project. Create `.env.local` in the project root with your project URL and public anon key:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-public-anon-key>
+```
+
+Restart the development server after adding or changing these values.

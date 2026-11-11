@@ -1,16 +1,15 @@
 'use client';
 
 import Link from 'next/link';
+import BrandLogo from '../../components/BrandLogo';
 
 export default function SuccessPage() {
   return (
     <div className="min-h-screen bg-[#F5F5F4] text-black font-sans antialiased flex flex-col">
       
       {/* MINIMAL HEADER */}
-      <header className="bg-white border-b border-zinc-200 py-6 px-8 text-center shrink-0">
-        <Link href="/" className="text-xl font-normal tracking-[0.4em] uppercase font-serif text-black hover:text-zinc-600 transition-colors">
-          S. SIKAMÒRE
-        </Link>
+      <header hidden className="bg-white border-b border-zinc-200 py-6 px-8 text-center shrink-0">
+        <BrandLogo imageClassName="h-9 sm:h-11" />
       </header>
 
       {/* PREMIUM SUCCESS UI */}
@@ -48,11 +47,6 @@ export default function SuccessPage() {
         </div>
 
       </main>
-
-      {/* MINIMAL FOOTER */}
-      <footer className="py-8 text-center border-t border-zinc-200 bg-white text-[9px] tracking-[0.3em] text-zinc-400 uppercase shrink-0">
-        © 2026 S. SIKAMÒRE LOGISTICS
-      </footer>
 
     </div>
   );

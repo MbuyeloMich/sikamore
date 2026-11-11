@@ -1,95 +1,92 @@
 export const dynamic = 'force-dynamic';
 
-import { createClient } from '@supabase/supabase-js';
+import Link from 'next/link';
 import ClientView from './ClientView';
+import { generateProductSlug, localProducts } from '../../../lib/local-products';
+import { isSupabaseConfigured, supabase } from '../../../lib/supabase';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+async function findProduct(slug) {
+  if (isSupabaseConfigured) {
+    const { data: products, error } = await supabase.from('products').select('*');
+    if (error) throw error;
 
-const extractCleanUrls = (payload) => {
-  if (!payload) return [];
-  try {
-    let raw = JSON.stringify(payload);
-    raw = raw.replace(/["'\[\]{}\s]/g, '');
-    return raw.split(',').filter(u => u.startsWith('http'));
-  } catch (e) {
-    return [];
+    const product = products?.find(item => generateProductSlug(item.name) === slug);
+    if (product) return product;
   }
-};
 
-const generateSlug = (name) => {
-  if (!name) return '';
-  return name.toString().toLowerCase().trim()
-    .replace(/\s+/g, '-')
-    .replace(/[^\w\-]+/g, '')
-    .replace(/\-\-+/g, '-');
-};
+  return localProducts.find(product => generateProductSlug(product.name) === slug) || null;
+}
 
-// Generates the WhatsApp / Social Media Link Previews
+function getPrimaryImage(product) {
+  const images = [];
+
+  function collect(value) {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach(collect);
+    } else if (typeof value === 'object') {
+      Object.values(value).forEach(collect);
+    } else if (typeof value === 'string') {
+      if (value.startsWith('[') || value.startsWith('{')) {
+        try {
+          collect(JSON.parse(value));
+        } catch {
+          return;
+        }
+      } else if (/^https?:\/\//i.test(value)) {
+        images.push(value);
+      }
+    }
+  }
+
+  collect(product?.image);
+  return images[0] || '';
+}
+
 export async function generateMetadata(props) {
-  const params = await props.params; 
-  const slug = params.id; // This is now the product name with dashes
+  const { id: slug } = await props.params;
+  const product = await findProduct(slug);
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  
-  // Fetch products to find the one matching our URL slug
-  const { data: products } = await supabase.from('products').select('*');
-  const product = products?.find(p => generateSlug(p.name) === slug);
-  
   if (!product) {
     return { title: 'Piece Not Found | S. SIKAMÒRE' };
   }
 
-  const images = extractCleanUrls(product.image);
-  const primaryImage = images.length > 0 ? images[0] : 'https://ssikamore.com/client-logo.jpeg';
+  const description = product.description || 'Discover this exclusive piece in the S. Sikamòre Archive.';
+  const primaryImage = getPrimaryImage(product) || 'https://ssikamore.com/client-logo.jpeg';
 
   return {
     title: `${product.name} | S. SIKAMÒRE`,
-    description: product.description || 'Discover this exclusive piece in the S. Sikamòre Archive.',
+    description,
     openGraph: {
       title: `${product.name} | S. SIKAMÒRE`,
-      description: product.description || 'Discover this exclusive piece in the S. Sikamòre Archive.',
+      description,
       url: `https://ssikamore.com/product/${slug}`,
-      images: [
-        {
-          url: primaryImage,
-          width: 1080,
-          height: 1080,
-          alt: product.name,
-        },
-      ],
+      images: [{ url: primaryImage, width: 1080, height: 1080, alt: product.name }],
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
       title: `${product.name} | S. SIKAMÒRE`,
-      description: product.description || 'Discover this exclusive piece in the S. Sikamòre Archive.',
+      description,
       images: [primaryImage],
     },
   };
 }
 
-// Renders the actual page content
 export default async function ProductPage(props) {
-  const params = await props.params; 
-  const slug = params.id;
+  const { id: slug } = await props.params;
+  const product = await findProduct(slug);
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  
-  // Search database for the product matching the slug
-  const { data: products } = await supabase.from('products').select('*');
-  const product = products?.find(p => generateSlug(p.name) === slug);
-  
   if (!product) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center text-[10px] tracking-widest uppercase text-black bg-zinc-50 gap-6">
+      <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6 bg-white text-[10px] uppercase tracking-widest text-black">
         <p>Piece not found in the archive.</p>
-        <a href="/shop" className="border border-black px-8 py-4 hover:bg-black hover:text-white transition-colors">
+        <Link href="/collections" className="border border-black px-8 py-4 transition-colors hover:bg-black hover:text-white">
           Return to Collection
-        </a>
+        </Link>
       </div>
     );
   }
 
-  return <ClientView product={product} />;
+  return <ClientView key={String(product.id)} product={product} />;
 }

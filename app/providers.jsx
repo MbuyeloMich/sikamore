@@ -1,11 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 const AppContext = createContext();
 
@@ -27,16 +23,20 @@ export function AppProvider({ children }) {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
+  const [theme, setThemeState] = useState('light');
   
   const [hasUnreadSupport, setHasUnreadSupport] = useState(false);
 
   useEffect(() => {
     const savedCart = localStorage.getItem('sikamore_cart');
     const savedWishlist = localStorage.getItem('sikamore_wishlist');
+    const savedTheme = localStorage.getItem('unnuly-home-theme');
     if (savedCart) try { setCart(JSON.parse(savedCart)); } catch (e) {}
     if (savedWishlist) try { setWishlist(JSON.parse(savedWishlist)); } catch (e) {}
+    if (savedTheme === 'dark' || savedTheme === 'light') setThemeState(savedTheme);
 
     const checkNotifications = async () => {
+      if (!isSupabaseConfigured) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data } = await supabase
@@ -47,11 +47,16 @@ export function AppProvider({ children }) {
         if (data && data.length > 0) setHasUnreadSupport(true);
       }
     };
-    checkNotifications();
+    checkNotifications().catch(error => console.error('Could not check support notifications:', error));
   }, []);
 
   useEffect(() => { localStorage.setItem('sikamore_cart', JSON.stringify(cart)); }, [cart]);
   useEffect(() => { localStorage.setItem('sikamore_wishlist', JSON.stringify(wishlist)); }, [wishlist]);
+
+  const setTheme = mode => {
+    setThemeState(mode);
+    localStorage.setItem('unnuly-home-theme', mode);
+  };
 
   const addToCart = (product, quantity, size) => {
     setCart(prev => {
@@ -97,6 +102,7 @@ export function AppProvider({ children }) {
       isCartOpen, setIsCartOpen,
       quickViewProduct, setQuickViewProduct,
       toastMessage, showToast,
+      theme, setTheme,
       hasUnreadSupport, setHasUnreadSupport
     }}>
       {children}

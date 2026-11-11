@@ -3,13 +3,10 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
+import BrandLogo from '../../components/BrandLogo';
 import { useApp } from '../providers';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from '../../lib/supabase';
 
 const extractCleanUrls = (payload) => {
   if (!payload) return [];
@@ -825,7 +822,7 @@ export default function AdminDashboard() {
     return (
       <div className="min-h-screen bg-zinc-50 text-black flex flex-col items-center justify-center px-6 font-sans antialiased">
         <div className="max-w-md w-full bg-white text-black p-10 shadow-lg border border-zinc-200 text-center">
-          <h1 className="text-xl font-normal tracking-[0.4em] uppercase mb-2 font-serif">S. SIKAMÒRE</h1>
+          <BrandLogo className="mb-2" imageClassName="h-10" />
           <p className="text-[9px] tracking-[0.2em] uppercase text-zinc-500 mb-8">Secure Admin Portal</p>
           <form onSubmit={handleLogin} className="flex flex-col gap-6">
             <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="ADMIN EMAIL" required className="w-full bg-zinc-50 p-4 border border-zinc-200 focus:border-black outline-none text-base md:text-xs text-center tracking-widest text-black uppercase" />
@@ -851,7 +848,7 @@ export default function AdminDashboard() {
               Sign Out
             </button>
           </div>
-          <h1 className="text-2xl font-normal tracking-[0.4em] uppercase mb-2 font-serif text-black">S. SIKAMÒRE</h1>
+          <BrandLogo className="mb-2" imageClassName="h-10" />
           <div className="flex flex-wrap justify-center gap-2 sm:gap-4 mt-8">
             {['inventory', 'waitlist', 'tracker', 'clients', 'logistics', 'newsletter', 'support', 'vendors', 'analytics'].map((tab) => (
               <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 text-[9px] tracking-[0.2em] uppercase transition-colors border ${activeTab === tab ? 'bg-black text-white border-black' : 'bg-white text-zinc-500 border-zinc-200 hover:border-black hover:text-black'}`}>

@@ -1,14 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useApp } from '../providers';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import BrandLogo from '../../components/BrandLogo';
+import { supabase } from '../../lib/supabase';
 
 export default function ClientLogin() {
   const router = useRouter();
@@ -76,7 +73,7 @@ export default function ClientLogin() {
     <div className="min-h-screen bg-[#F5F5F4] text-black font-sans antialiased flex flex-col relative">
       
       {/* MINIMAL NAV HEADER */}
-      <header className="border-b border-zinc-300 h-20 bg-[#F5F5F4] absolute top-0 w-full z-40 flex items-center">
+      <header hidden className="border-b border-zinc-300 h-20 bg-[#F5F5F4] absolute top-0 w-full z-40 flex items-center">
         <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-8 flex items-center justify-between">
           <div className="z-10">
             <Link href="/shop" className="tracking-[0.2em] text-zinc-500 hover:text-black uppercase text-[10px] flex items-center gap-1.5 transition-colors">
@@ -85,16 +82,14 @@ export default function ClientLogin() {
             </Link>
           </div>
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <h1 className="text-xs sm:text-base font-normal tracking-[0.4em] uppercase font-serif text-black pl-[0.4em]">
-              S. SIKAMÒRE
-            </h1>
+            <BrandLogo className="pointer-events-auto" imageClassName="h-8 sm:h-10" />
           </div>
           <div className="z-10 w-[60px]"></div> {/* Spacer */}
         </div>
       </header>
 
       {/* AUTHENTICATION CARD */}
-      <main className="flex-1 flex items-center justify-center px-4 pt-20">
+      <main className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-md bg-[#0A0A0A] text-white p-10 sm:p-14 shadow-2xl border border-zinc-800 animate-fade-in-up">
           
           <div className="text-center mb-10">

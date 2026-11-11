@@ -3,13 +3,10 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
+import BrandLogo from '../../components/BrandLogo';
 import { useApp } from '../providers';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from '../../lib/supabase';
 
 // THE BRUTE FORCE EXTRACTOR: Protects the Wishlist from ever breaking
 const getPrimaryImage = (payload) => {
@@ -362,7 +359,7 @@ export default function Dashboard() {
       <div className="max-w-6xl mx-auto">
         
         <div className="mb-12 text-center relative border-b border-zinc-200 pb-10">
-          <Link href="/" className="text-2xl font-normal tracking-[0.4em] uppercase font-serif text-black hover:text-zinc-600 transition-colors">S. SIKAMÒRE</Link>
+          <BrandLogo imageClassName="h-9 sm:h-11" />
           <p className="text-[9px] tracking-[0.2em] uppercase text-zinc-500 mt-2 mb-8">Client Private Console</p>
           
           <div className="flex flex-wrap justify-center gap-2 sm:gap-4">

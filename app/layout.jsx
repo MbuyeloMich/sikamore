@@ -1,6 +1,9 @@
 import './globals.css';
 import { AppProvider } from './providers';
-import GlobalCart from './GlobalCart'; // <-- WE IMPORT THE CART HERE
+import GlobalCart from './GlobalCart';
+import Navbar from '../components/Navbar';
+import BrandPreloader from '../components/BrandPreloader';
+import GlobalFooter from '../components/GlobalFooter';
 
 export const metadata = {
   title: 'S. SIKAMÒRE | Official Store',
@@ -44,10 +47,11 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         <AppProvider>
-          {/* THE CART FLOATS HERE ON EVERY PAGE */}
+          <BrandPreloader />
+          <Navbar />
           <GlobalCart />
-          
           {children}
+          <GlobalFooter />
         </AppProvider>
       </body>
     </html>

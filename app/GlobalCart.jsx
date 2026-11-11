@@ -5,11 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useApp } from './providers'; 
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 const currencySymbols = { NGN: '₦', USD: '$', GBP: '£', EUR: '€' };
 
@@ -51,6 +47,7 @@ export default function GlobalCart() {
 
   useEffect(() => {
     async function loadMasterSettings() {
+      if (!isSupabaseConfigured) return;
       try {
         const { data } = await supabase.from('shipping_settings').select('*').eq('id', 1).single();
         if (data) {
@@ -89,7 +86,7 @@ export default function GlobalCart() {
     locateClientNetwork();
   }, []);
 
-  const hiddenPaths = ['/', '/login', '/signup', '/register', '/checkout'];
+  const hiddenPaths = ['/login', '/signup', '/register', '/checkout'];
   if (hiddenPaths.includes(pathname) || pathname.startsWith('/admin')) {
     return null;
   }

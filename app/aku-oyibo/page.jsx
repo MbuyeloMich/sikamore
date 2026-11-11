@@ -2,11 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import BrandLogo from '../../components/BrandLogo';
+import { supabase } from '../../lib/supabase';
 
 export default function AkuOyiboWaitlist() {
   const [products, setProducts] = useState([]);
@@ -70,8 +67,8 @@ export default function AkuOyiboWaitlist() {
           <div className="absolute inset-0 bg-gradient-to-b from-[#4A3025]/90 via-[#4A3025]/60 to-[#4A3025]/90 md:bg-gradient-to-r md:from-[#4A3025]/95 md:via-[#4A3025]/70 md:to-transparent"></div>
         </div>
 
-        <header className="w-full pt-8 px-6 sm:px-12 flex justify-between items-center z-10 relative">
-          <Link href="/" className="text-sm tracking-[0.3em] font-serif uppercase text-[#F4EFE6]">S. Sikamòre</Link>
+        <header hidden className="w-full pt-8 px-6 sm:px-12 flex justify-between items-center z-10 relative">
+          <BrandLogo imageClassName="h-9 sm:h-11" variant="light" />
           <nav className="hidden md:flex gap-10 text-[9px] uppercase tracking-widest text-[#D1C7BD]">
             <Link href="/collections" className="hover:text-white transition-colors">Collections</Link>
             <Link href="/bags" className="hover:text-white transition-colors">Bags</Link>

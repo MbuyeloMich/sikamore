@@ -1,0 +1,157 @@
+.bar {
+  width: 100%;
+  overflow: hidden;
+  color: #fff;
+  background: #000;
+}
+
+.track {
+  display: flex;
+  width: max-content;
+  animation: announcementScroll 24s linear infinite;
+}
+
+.bar:hover .track,
+.bar:focus-within .track {
+  animation-play-state: paused;
+}
+
+.messageGroup {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: clamp(16px, 2vw, 30px);
+  padding: 4px clamp(20px, 3vw, 44px);
+}
+
+.message {
+  display: inline-block;
+  color: inherit;
+  font-size: clamp(11px, 0.8vw, 13px);
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  line-height: 1.1;
+  text-decoration: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation:
+    announcementRise 650ms cubic-bezier(0.2, 0.7, 0.2, 1) both,
+    messageFlash 1.8s ease-in-out 650ms infinite;
+}
+
+.emblem {
+  display: block;
+  width: 32px;
+  height: 30px;
+  flex: none;
+  object-fit: contain;
+  animation: emblemFlash 1.8s ease-in-out infinite;
+}
+
+.messageGroup:nth-child(2) .message {
+  animation-delay: 120ms;
+}
+
+.messageGroup:nth-child(2) .emblem {
+  animation-delay: 900ms;
+}
+
+.message:hover,
+.message:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.message:focus-visible {
+  outline: 1px solid #fff;
+  outline-offset: 4px;
+}
+
+@keyframes announcementScroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes announcementRise {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes emblemFlash {
+  0%,
+  100% {
+    opacity: 0.45;
+    filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0));
+  }
+
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
+  }
+}
+
+@keyframes messageFlash {
+  0%,
+  100% {
+    opacity: 0.78;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 600px) {
+  .track {
+    animation-duration: 19s;
+  }
+
+  .messageGroup {
+    gap: 14px;
+    padding: 4px 16px;
+  }
+
+  .message {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .emblem {
+    width: 25px;
+    height: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track {
+    animation: none;
+  }
+
+  .messageGroup:nth-child(2) {
+    display: none;
+  }
+
+  .message {
+    animation: none;
+    opacity: 1;
+  }
+
+  .emblem {
+    animation: none;
+    opacity: 1;
+    filter: none;
+  }
+}

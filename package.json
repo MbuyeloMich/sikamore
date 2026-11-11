@@ -8,12 +8,14 @@
     "start": "next start"
   },
   "dependencies": {
-    "resend": "latest",
+    "@animateicons/react": "^0.13.0",
+    "@paystack/inline-js": "latest",
+    "@supabase/supabase-js": "latest",
+    "gsap": "^3.15.1",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "@supabase/supabase-js": "latest",
-    "@paystack/inline-js": "latest"
+    "resend": "latest"
   },
   "devDependencies": {
     "autoprefixer": "latest",
